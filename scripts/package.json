@@ -1,0 +1,4 @@
+{
+  "//": "Scoped to scripts/ so the verification scripts run as ES modules without forcing type:module on the Next.js app itself.",
+  "type": "module"
+}

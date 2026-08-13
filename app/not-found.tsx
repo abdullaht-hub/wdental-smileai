@@ -9,8 +9,8 @@ export default function NotFound() {
           This code isn&apos;t active
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
-          The QR code you scanned may have been replaced. You can still book a
-          free consultation with us — we&apos;d love to see you.
+          The QR code you scanned may have been replaced. Please mention it to a
+          member of our team — they can show you the preview themselves.
         </p>
         <a
           href="https://w-dental.co.uk/"

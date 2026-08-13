@@ -40,8 +40,8 @@ export default async function LocationPage({
   const location = getLocation(slug);
 
   // An unknown slug means a mis-typed or retired QR code. 404 rather than
-  // falling back to a generic page — a lead with no location attached is
-  // useless for the per-placement reporting this whole app exists to produce.
+  // falling back to a generic page: a wrong-clinic greeting to someone standing
+  // in reception is worse than an honest dead end.
   if (!location) notFound();
 
   return <SmileFlow location={location} />;

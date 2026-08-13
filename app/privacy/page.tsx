@@ -20,7 +20,6 @@ export const metadata: Metadata = {
  * Outstanding for the clinic:
  *   - Named data controller and ICO registration number.
  *   - Named Data Protection Officer / contact address for rights requests.
- *   - Retention period for booking enquiries in the leads sheet.
  *   - Confirmation that kie.ai (and its sub-processors) is covered by an
  *     appropriate international transfer mechanism — the processing happens
  *     outside the UK.
@@ -49,8 +48,8 @@ export default function PrivacyPage() {
             train anything, and we never share them.
           </p>
           <p>
-            If you fill in the booking form, we keep only your name, your
-            contact detail, and which QR code you scanned.
+            We do not ask you for your name or your contact details, and this
+            tool keeps no record of you at all.
           </p>
         </Section>
 
@@ -87,49 +86,44 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="What we keep">
-          <p>If, and only if, you submit the booking form, we record:</p>
-          <ul className="list-disc space-y-1.5 pl-5">
-            <li>your name;</li>
-            <li>the phone number or email address you gave us;</li>
-            <li>which QR code location you scanned;</li>
-            <li>the date, and the version of this notice you agreed to.</li>
-          </ul>
+          <p>Nothing that identifies you.</p>
           <p>
-            We do not record your photo, your preview, your IP address, or your
-            device details. We use no advertising or analytics trackers on this
-            site, and it sets no cookies.
+            We do not record your name, your phone number, your email address,
+            your photo, your preview, your IP address, or your device details.
+            The only thing stored on your device is a note that you agreed to
+            this notice, which your browser discards when you close the tab. We
+            use no advertising or analytics trackers on this site, and it sets
+            no cookies.
+          </p>
+          <p>
+            If you decide you would like to talk to us about treatment, you do
+            that by speaking to a member of our team in the practice — not
+            through this tool.
           </p>
         </Section>
 
         <Section title="Why we're allowed to do this">
           <p>
-            For your photo: your explicit consent, which you give on the first
-            screen. You can withdraw it simply by closing the page — there is
-            nothing left to delete afterwards.
-          </p>
-          <p>
-            For your booking details: your consent, so that we can contact you
-            about the consultation you asked for.
+            Your explicit consent, which you give on the first screen. You can
+            withdraw it simply by closing the page — there is nothing left to
+            delete afterwards.
           </p>
         </Section>
 
         <Section title="How long we keep it">
           <p>
             Photos and previews: deleted within seconds of your preview being
-            shown, and in all cases within fifteen minutes.
-          </p>
-          <p className="rounded-[10px] bg-white px-4 py-3 text-[14px] text-ink-soft">
-            Booking enquiries: <em>[retention period to be confirmed by the
-            practice]</em>.
+            shown, and in all cases within fifteen minutes. Nothing else about
+            your visit to this page is retained at all.
           </p>
         </Section>
 
         <Section title="Your rights">
           <p>
             You can ask us for a copy of what we hold about you, ask us to
-            correct it, or ask us to delete it. Because photos are deleted
-            automatically, such a request would only ever concern your booking
-            details.
+            correct it, or ask us to delete it. In the case of this tool there
+            will be nothing to send you: photos are deleted automatically and
+            nothing identifying you is recorded in the first place.
           </p>
           <p className="rounded-[10px] bg-white px-4 py-3 text-[14px] text-ink-soft">
             <em>[Data controller name, ICO registration number and contact

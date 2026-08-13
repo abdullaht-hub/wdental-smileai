@@ -8,12 +8,11 @@ import { CameraCapture } from "@/components/CameraCapture";
 import { GeneratingState } from "@/components/GeneratingState";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
 import { DisclaimerBlock } from "@/components/Disclaimer";
-import { BookingForm } from "@/components/BookingForm";
 import { prepareImage } from "@/lib/imagePrep";
 import { checkImage, type QualityResult } from "@/lib/imageQuality";
 import { saveResultImage } from "@/lib/saveImage";
 import { CONSENT_STORAGE_KEY, CONSENT_VERSION, type ConsentRecord } from "@/lib/consent";
-import { OPENING_HOURS, telUrl, whatsappUrl, type Location } from "@/lib/locations";
+import { type Location } from "@/lib/locations";
 
 /**
  * The whole patient journey, as one client-side state machine.
@@ -25,23 +24,21 @@ import { OPENING_HOURS, telUrl, whatsappUrl, type Location } from "@/lib/locatio
  * THE PHOTO LIVES HERE AND NOWHERE ELSE. `photo` and `result` are React state:
  * no localStorage, no sessionStorage, no IndexedDB, no URL parameter. Closing
  * the tab destroys both. The only thing that persists is the consent record.
+ *
+ * The journey ends at the preview. These QR codes are inside the clinic, so
+ * the patient is already standing in reception — there is nobody to call back
+ * and no appointment to arrange remotely. The result screen hands them to a
+ * member of staff instead, which is why no contact details are collected here
+ * at all.
  */
 
-type Step =
-  | "consent"
-  | "capture"
-  | "checking"
-  | "generating"
-  | "result"
-  | "booking"
-  | "done";
+type Step = "consent" | "capture" | "checking" | "generating" | "result";
 
 const POLL_INTERVAL_MS = 2500;
 const POLL_TIMEOUT_MS = 150_000;
 
 export function SmileFlow({ location }: { location: Location }) {
   const [step, setStep] = useState<Step>("consent");
-  const [consentedAt, setConsentedAt] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [rejection, setRejection] = useState<QualityResult | null>(null);
@@ -67,22 +64,25 @@ export function SmileFlow({ location }: { location: Location }) {
       // A consent given against older wording is not consent to the current
       // wording — re-ask rather than assume.
       if (rec.version !== CONSENT_VERSION) return;
-      setConsentedAt(rec.at);
       setStep("capture");
     } catch {
       /* corrupt entry — fall through to asking again */
     }
   }, []);
 
+  // The consent record is still written: it is the evidence that consent was
+  // given for the photo processing, and it stops a mid-session refresh
+  // re-asking. Nothing reads it back off the device any more.
   const accept = useCallback(() => {
-    const at = new Date().toISOString();
-    const rec: ConsentRecord = { version: CONSENT_VERSION, at };
+    const rec: ConsentRecord = {
+      version: CONSENT_VERSION,
+      at: new Date().toISOString(),
+    };
     try {
       sessionStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(rec));
     } catch {
       /* private mode — the flow still works, it just re-asks on refresh */
     }
-    setConsentedAt(at);
     setStep("capture");
   }, []);
 
@@ -171,7 +171,7 @@ export function SmileFlow({ location }: { location: Location }) {
     <div className="mx-auto flex min-h-dvh max-w-[560px] flex-col px-4 pb-[max(24px,env(safe-area-inset-bottom))] pt-5">
       <header className="mb-6 flex items-center justify-between">
         <Logo className="h-6 w-auto text-ink" />
-        {step !== "consent" && step !== "done" && (
+        {step !== "consent" && (
           <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-ink-soft">
             Smile Preview
           </span>
@@ -236,32 +236,22 @@ export function SmileFlow({ location }: { location: Location }) {
               close this page.
             </p>
 
-            <div className="mt-8">
-              <Button onClick={() => setStep("booking")}>
-                Book a Free Consultation
-              </Button>
+            <div className="mt-8 rounded-[16px] border border-sand bg-white p-5 text-center">
+              <h2 className="text-[21px] leading-[1.2] text-ink">
+                Like what you see?
+              </h2>
+              <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">
+                Show this to a member of our team while you&apos;re here.
+                They&apos;ll talk you through what composite bonding could
+                actually do for your teeth — and what it would cost.
+              </p>
+              <p className="mt-3.5 text-[13px] leading-relaxed text-ink-soft">
+                Save it to your phone first if you&apos;d rather not hand your
+                screen over.
+              </p>
             </div>
           </div>
         )}
-
-        {step === "booking" && consentedAt && (
-          <div className="wd-enter">
-            <BookingForm
-              location={location}
-              consentedAt={consentedAt}
-              previewGenerated={!!result}
-              onDone={() => setStep("done")}
-            />
-            <button
-              onClick={() => setStep(result ? "result" : "capture")}
-              className="mt-4 w-full py-2 text-center text-[14px] text-ink-soft underline underline-offset-2"
-            >
-              Back
-            </button>
-          </div>
-        )}
-
-        {step === "done" && <Done location={location} />}
       </main>
 
       <footer className="mt-10 border-t border-sand pt-5 text-center">
@@ -272,63 +262,6 @@ export function SmileFlow({ location }: { location: Location }) {
           </a>
         </p>
       </footer>
-    </div>
-  );
-}
-
-function Done({ location }: { location: Location }) {
-  const { clinic } = location;
-  return (
-    <div className="wd-enter text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-teal text-white">
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="m5 12.5 4.5 4.5L19 7.5"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </svg>
-      </div>
-      <h1 className="mt-5 text-[28px] leading-[1.15] text-ink">
-        Thanks — we&apos;ll be in touch
-      </h1>
-      <p className="mt-2.5 text-[15px] leading-relaxed text-ink-muted">
-        Someone from {clinic.name} will contact you to arrange your free
-        consultation.
-      </p>
-
-      <div className="mt-7 rounded-[16px] border border-sand bg-white p-5 text-left">
-        <h2 className="text-[19px] text-ink">{clinic.name}</h2>
-        <p className="mt-1.5 text-[15px] leading-relaxed text-ink-muted">
-          {clinic.address}
-          <br />
-          {clinic.postcode}
-        </p>
-        <p className="mt-2 text-[14px] text-ink-soft">{OPENING_HOURS}</p>
-
-        <div className="mt-5 space-y-3">
-          <a href={telUrl(clinic)} className="block">
-            <Button variant="secondary">Call {clinic.phone}</Button>
-          </a>
-          <a
-            href={whatsappUrl(
-              clinic,
-              `Hi W Dental — I just tried the Smile Preview at ${location.displayName} and I'd like to book a consultation.`,
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block"
-          >
-            <Button variant="secondary">Message on WhatsApp</Button>
-          </a>
-          <a href={clinic.mapsUrl} target="_blank" rel="noopener noreferrer" className="block">
-            <Button variant="ghost">Get directions</Button>
-          </a>
-        </div>
-      </div>
     </div>
   );
 }

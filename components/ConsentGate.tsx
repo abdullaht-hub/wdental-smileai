@@ -30,7 +30,7 @@ export function ConsentGate({
       </h1>
       <p className="mt-3 text-[16px] leading-relaxed text-ink-muted">
         {location.heroCopy ??
-          `Take a photo and we'll show you a simulated preview in under a minute. ${location.clinic.name} is nearby.`}
+          `Take a photo and we'll show you a simulated preview in under a minute, while you're here at ${location.clinic.name}.`}
       </p>
 
       <div className="mt-7 rounded-[16px] border border-sand bg-white p-5">
@@ -66,14 +66,10 @@ export function ConsentGate({
 
       <div className="mt-6">
         <Button onClick={onAccept}>I agree — show me my preview</Button>
+        {/* This code is on a wall inside the clinic, so the alternative to
+            the preview is a person a few steps away, not a phone call. */}
         <p className="mt-3 text-center text-[13px] text-ink-soft">
-          Rather just talk to someone?{" "}
-          <a
-            href={`tel:${location.clinic.phone.replace(/[^0-9+]/g, "")}`}
-            className="text-teal underline underline-offset-2"
-          >
-            Call {location.clinic.phone}
-          </a>
+          Rather just talk to someone? Ask at reception — we&apos;re right here.
         </p>
       </div>
     </div>

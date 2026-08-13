@@ -1,10 +1,14 @@
 # W Dental — Smile Preview
 
-A mobile-first web app reached by QR code. A passer-by scans a code near one of
-the clinics, consents, photographs their smile, and gets an AI-simulated preview
-of composite bonding shown against their original photo. Underneath sits a
-booking form whose submissions are tagged with the QR placement, so the clinic
-can see which posters actually produce leads.
+A mobile-first web app reached by QR code. The codes are displayed **inside**
+the clinics: a patient already in the building scans one, consents, photographs
+their smile, and gets an AI-simulated preview of composite bonding shown against
+their original photo. The journey ends there, on the result screen, which asks
+them to show it to a member of staff.
+
+There is deliberately **no lead capture** — no form, no name, no contact
+details, no leads sheet. The person is standing in reception; the conversation
+happens in person, and the app collects nothing about them.
 
 **The photo is never stored.** It exists in browser memory and in an
 unguessable blob for the few seconds kie.ai needs to fetch it, then it is
@@ -50,7 +54,7 @@ QR → /s/[slug] → consent → capture → quality gate ─┐   all client-si
               on terminal state: fetch result bytes, DELETE BLOB,
                         return image inline as a data URI
                                                     │
-             before/after slider (memory only) → booking form → Sheets
+                     before/after slider (memory only) → end
 ```
 
 There is **no database**. The job token is a base64url payload plus an
@@ -104,8 +108,10 @@ We deliberately do **not** use kie.ai's own file-upload endpoint: it retains
 uploads for 24 hours to 3 days and exposes no delete API. Hosting the input
 ourselves is what makes prompt deletion possible at all.
 
-Also: no analytics or third-party scripts, no cookies, and the leads sheet
-records no image, no image URL, and no IP address.
+Also: no analytics or third-party scripts, no cookies, and — since lead capture
+was removed — no personal data recorded anywhere at all. The only thing written
+outside browser memory is the transient blob, and that is deleted within
+seconds.
 
 ### Still outstanding — the clinic's call, not ours
 
@@ -114,7 +120,6 @@ first QR goes on a wall, W Dental's data protection adviser needs to supply:
 
 - the named data controller and ICO registration number;
 - a contact route for rights requests;
-- a retention period for booking enquiries;
 - confirmation of the international transfer mechanism covering kie.ai;
 - a DPIA. The images are deleted within seconds and are never used to identify
   anyone, so this is not biometric processing under UK GDPR — but this is facial
@@ -145,8 +150,9 @@ Shoot one blurry, one dark, one backlit and one no-face photo. Each must give
 its own specific retake message, and **none** may reach kie.ai — confirm zero
 credit movement in the kie.ai dashboard. In development a metrics panel appears
 under the capture buttons showing the raw measurements, for tuning
-`THRESHOLDS` in `lib/imageQuality.ts` on real hardware. A false reject costs a
-lead, so widen before narrowing.
+`THRESHOLDS` in `lib/imageQuality.ts` on real hardware. A false reject sends a
+patient away without the preview that starts the conversation, so widen before
+narrowing.
 
 ### Before launch: tune the prompt
 
@@ -189,10 +195,6 @@ skip and shouldn't be:
   go. The app logs an error at boot if they are missing in production.
 - **`CRON_SECRET`** — the sweeper refuses to run without it, which silently
   disables the deletion backstop.
-
-The `Leads` tab in the target spreadsheet needs the header row from
-`SHEET_HEADERS` in `lib/sheets.ts`, and the sheet must be shared with the
-service account address as an Editor.
 
 ### Orphan sweep setup
 

@@ -6,8 +6,8 @@
  *   node --env-file=.env.local scripts/generate-qr-codes.ts https://your-domain.vercel.app
  *
  * High error-correction (H) is used deliberately: these get printed, laminated,
- * scuffed, and scanned at odd angles in a bus shelter — cheap paper and glare
- * are the normal case, not the exception.
+ * scuffed, and scanned at odd angles from a waiting-room chair — cheap paper
+ * and glare are the normal case, not the exception.
  */
 
 import QRCode from "qrcode";

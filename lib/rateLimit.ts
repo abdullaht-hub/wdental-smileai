@@ -13,29 +13,58 @@ import { Redis } from "@upstash/redis";
  * incident waiting to happen.
  */
 
-const configured =
-  !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN;
-
+/**
+ * Built on first use rather than at import. `Redis.fromEnv()` throws on a
+ * malformed URL, and module scope is evaluated during `next build` while it
+ * collects page data — so constructing it eagerly turns a bad env var into a
+ * failed deployment of the entire site, which is the opposite of the
+ * degrade-open behaviour promised above. Deferring it keeps a misconfigured
+ * Redis a rate-limiting problem instead of an outage.
+ */
 let limiter: Ratelimit | null = null;
+let initialized = false;
 
-if (configured) {
-  limiter = new Ratelimit({
-    redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(5, "1 h"),
-    prefix: "wd:preview",
-    analytics: false,
-  });
-} else if (process.env.NODE_ENV === "production") {
-  console.error(
-    "[rateLimit] UPSTASH_REDIS_REST_* not set — /api/preview/start is UNPROTECTED.",
-  );
+function getLimiter(): Ratelimit | null {
+  if (initialized) return limiter;
+  initialized = true;
+
+  const configured =
+    !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[rateLimit] UPSTASH_REDIS_REST_* not set — /api/preview/start is UNPROTECTED.",
+      );
+    }
+    return null;
+  }
+
+  try {
+    limiter = new Ratelimit({
+      redis: Redis.fromEnv(),
+      limiter: Ratelimit.slidingWindow(5, "1 h"),
+      prefix: "wd:preview",
+      analytics: false,
+    });
+  } catch (err) {
+    // Almost always a malformed URL or token — commonly the surrounding quotes
+    // from a .env file pasted into the Vercel dashboard verbatim.
+    console.error(
+      "[rateLimit] Upstash is configured but unusable — /api/preview/start is UNPROTECTED:",
+      err,
+    );
+    limiter = null;
+  }
+  return limiter;
 }
 
 export type LimitResult = { ok: boolean; retryAfterSeconds: number };
 
 export async function checkPreviewLimit(ip: string): Promise<LimitResult> {
-  if (!limiter) return { ok: true, retryAfterSeconds: 0 };
-  const { success, reset } = await limiter.limit(ip);
+  const rl = getLimiter();
+  if (!rl) return { ok: true, retryAfterSeconds: 0 };
+  const { success, reset } = await rl.limit(ip);
   return {
     ok: success,
     retryAfterSeconds: Math.max(1, Math.ceil((reset - Date.now()) / 1000)),

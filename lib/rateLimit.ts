@@ -13,6 +13,13 @@ import { Redis } from "@upstash/redis";
  * incident waiting to happen.
  */
 
+/** Per-IP hourly ceiling. Loose on purpose — see getLimiters(). */
+const PER_IP_HOURLY = 10;
+/** Per-clinic daily ceiling ≈ $3/day of kie.ai credit at ~$0.02 a preview. */
+const PER_LOCATION_DAILY = 150;
+
+type Limiters = { perIp: Ratelimit; perLocation: Ratelimit } | null;
+
 /**
  * Built on first use rather than at import. `Redis.fromEnv()` throws on a
  * malformed URL, and module scope is evaluated during `next build` while it
@@ -21,11 +28,11 @@ import { Redis } from "@upstash/redis";
  * degrade-open behaviour promised above. Deferring it keeps a misconfigured
  * Redis a rate-limiting problem instead of an outage.
  */
-let limiter: Ratelimit | null = null;
+let limiters: Limiters = null;
 let initialized = false;
 
-function getLimiter(): Ratelimit | null {
-  if (initialized) return limiter;
+function getLimiters(): Limiters {
+  if (initialized) return limiters;
   initialized = true;
 
   const configured =
@@ -41,12 +48,27 @@ function getLimiter(): Ratelimit | null {
   }
 
   try {
-    limiter = new Ratelimit({
-      redis: Redis.fromEnv(),
-      limiter: Ratelimit.slidingWindow(5, "1 h"),
-      prefix: "wd:preview",
-      analytics: false,
-    });
+    const redis = Redis.fromEnv();
+    limiters = {
+      // Per-IP: stops one person looping the button. Deliberately generous,
+      // because every phone on the clinic's guest WiFi shares a single NAT
+      // address, and UK mobile carriers CGNAT on top of that. A tight per-IP
+      // limit locks out the waiting room, not the abuser.
+      perIp: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(PER_IP_HOURLY, "1 h"),
+        prefix: "wd:preview:ip",
+        analytics: false,
+      }),
+      // Per-location daily cap: this is the real spend guard. It is what the
+      // per-IP limit used to be pretending to be.
+      perLocation: new Ratelimit({
+        redis,
+        limiter: Ratelimit.fixedWindow(PER_LOCATION_DAILY, "24 h"),
+        prefix: "wd:preview:loc",
+        analytics: false,
+      }),
+    };
   } catch (err) {
     // Almost always a malformed URL or token — commonly the surrounding quotes
     // from a .env file pasted into the Vercel dashboard verbatim.
@@ -54,21 +76,39 @@ function getLimiter(): Ratelimit | null {
       "[rateLimit] Upstash is configured but unusable — /api/preview/start is UNPROTECTED:",
       err,
     );
-    limiter = null;
+    limiters = null;
   }
-  return limiter;
+  return limiters;
 }
 
 export type LimitResult = { ok: boolean; retryAfterSeconds: number };
 
-export async function checkPreviewLimit(ip: string): Promise<LimitResult> {
-  const rl = getLimiter();
-  if (!rl) return { ok: true, retryAfterSeconds: 0 };
-  const { success, reset } = await rl.limit(ip);
-  return {
-    ok: success,
-    retryAfterSeconds: Math.max(1, Math.ceil((reset - Date.now()) / 1000)),
-  };
+const ALLOW: LimitResult = { ok: true, retryAfterSeconds: 0 };
+
+async function run(rl: Ratelimit, key: string): Promise<LimitResult> {
+  try {
+    const { success, reset } = await rl.limit(key);
+    return {
+      ok: success,
+      retryAfterSeconds: Math.max(1, Math.ceil((reset - Date.now()) / 1000)),
+    };
+  } catch (err) {
+    // Upstash blip mid-request. Fail open: the guard in getLimiters() covers a
+    // misconfigured Redis, but without this an Upstash outage 500s every scan
+    // in the clinic, which is a worse failure than an unmetered hour.
+    console.error("[rateLimit] check failed, allowing through:", err);
+    return ALLOW;
+  }
+}
+
+export async function checkIpLimit(ip: string): Promise<LimitResult> {
+  const l = getLimiters();
+  return l ? run(l.perIp, ip) : ALLOW;
+}
+
+export async function checkLocationBudget(slug: string): Promise<LimitResult> {
+  const l = getLimiters();
+  return l ? run(l.perLocation, slug) : ALLOW;
 }
 
 /**

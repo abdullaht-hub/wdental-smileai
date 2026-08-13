@@ -4,7 +4,7 @@ import { z } from "zod";
 import { storePhoto, deletePhoto } from "@/lib/blob";
 import { createEditTask, KieError } from "@/lib/kie";
 import { createJobToken } from "@/lib/jobToken";
-import { checkPreviewLimit, clientIp } from "@/lib/rateLimit";
+import { checkIpLimit, checkLocationBudget, clientIp } from "@/lib/rateLimit";
 import { getLocation } from "@/lib/locations";
 import { PROMPT_VERSION } from "@/lib/prompt";
 
@@ -21,14 +21,15 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
-  const limit = await checkPreviewLimit(clientIp(req.headers));
-  if (!limit.ok) {
+  // Checked before the body is read, so a flood costs us nothing to reject.
+  const ipLimit = await checkIpLimit(clientIp(req.headers));
+  if (!ipLimit.ok) {
     return NextResponse.json(
       {
         error:
-          "You've made a few previews already. Please try again a little later, or pop in and see us.",
+          "You've made a few previews already. Please give it a little while, or ask a member of our team.",
       },
-      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+      { status: 429, headers: { "Retry-After": String(ipLimit.retryAfterSeconds) } },
     );
   }
 
@@ -41,6 +42,22 @@ export async function POST(req: Request) {
 
   if (!getLocation(parsed.locationSlug)) {
     return NextResponse.json({ error: "Unknown location." }, { status: 400 });
+  }
+
+  // The spend guard, keyed by clinic. Necessarily after the slug is known and
+  // validated, so an unknown slug cannot burn another location's budget.
+  const budget = await checkLocationBudget(parsed.locationSlug);
+  if (!budget.ok) {
+    // Either the app is having a very good day or someone is draining credit.
+    // Both are worth knowing about the same morning.
+    console.warn(`[preview/start] daily cap hit for ${parsed.locationSlug}`);
+    return NextResponse.json(
+      {
+        error:
+          "Our smile preview is taking a short break. Please ask a member of our team — they can show you examples right now.",
+      },
+      { status: 429, headers: { "Retry-After": String(budget.retryAfterSeconds) } },
+    );
   }
 
   // --- Normalise before anything is written anywhere -----------------------
